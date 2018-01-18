@@ -10,6 +10,7 @@ from jarray import array
 import sys  
 import csv 
 import os
+import signal
 import shutil
 from subprocess import Popen, PIPE
 
@@ -134,18 +135,27 @@ def WriteTotalLatency():
 	objectName = ObjectName("org.apache.cassandra.metrics:type=Keyspace,keyspace=ycsb,name=WriteTotalLatency");
 	return(mBeanServerConnection.getAttribute(objectName,"Count"))
 
+def sig_handler(signal, frame):
+	fpath=os.path.join(opDir,filename)
+	with open(fpath, 'w') as f:
+		writer = csv.writer(f)
+		writer.writerows(output)
+	exit()
+
 if __name__=='__main__':
+	signal.signal(signal.SIGINT, sig_handler)
         credentials = array(["",""],String)
         environment = {JMXConnector.CREDENTIALS:credentials}
- 	if len(sys.argv[1:])==4:
- 		serverUrl = sys.argv[1]
- 		outputdir=sys.argv[2]
+	if len(sys.argv[1:])==5:
+		serverUrl = sys.argv[1]
+		outputdir=sys.argv[2]
 		cores=sys.argv[3]
 		pid=sys.argv[4]
- 		opDir=os.path.join(os.path.dirname(__file__),outputdir)
- 		if os.path.exists(opDir):
- 			shutil.rmtree(opDir)
- 		os.makedirs(opDir)
+		filename=sys.argv[5]
+		opDir=os.path.join(os.path.dirname(__file__),outputdir)
+		# if os.path.exists(opDir):
+		#	shutil.rmtree(opDir)
+		# os.makedirs(opDir)
 		jmxServiceUrl = JMXServiceURL('service:jmx:rmi:///jndi/rmi://'+str(serverUrl)+':7199/jmxrmi');
 		jmxConnector = JMXConnectorFactory.connect(jmxServiceUrl,environment);
 		mBeanServerConnection = jmxConnector.getMBeanServerConnection()
@@ -176,17 +186,13 @@ if __name__=='__main__':
 			thread21=RequestResponseStageActive()
 			thread22=ViewMutationStageActive()
 			thread23=Native_Transport_RequestsActive()
-			util=cpu_mem_usage(pid)
-			io_info=io_usage(pid)
+			try:
+				util=cpu_mem_usage(pid)
+				io_info=io_usage(pid)
+			except IndexError:
+				print('Ending')
 			ReadLatencyCount=ReadLatency()
 			WriteLatencyCount=WriteLatency()
-			if(count['count']>700):
-				print(len(output))
-				fpath=os.path.join(opDir,"out.csv")
-				with open(fpath, 'w') as f:
-					writer = csv.writer(f)
-					writer.writerows(output)
-				exit()
 			if(thread1>0 or thread2>0 or thread3>0 or thread4>0 or thread5>0 or thread6>0 or thread7>0 or thread8>0 or thread9>0 or thread10>0 or thread11>0 or thread12>0 or thread13>0 or thread14>0 or thread15>0 or thread16>0 or thread17>0 or thread18>0 or thread19>0 or thread20>0 or thread21>0 or thread22>0 or thread23>0):
 				if ReadLatencyCount>0 or WriteLatencyCount>0:
 					count['count']=0
